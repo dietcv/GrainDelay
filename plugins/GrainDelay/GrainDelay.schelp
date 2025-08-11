@@ -1,0 +1,26 @@
+class:: GrainDelay
+summary:: a granular delay
+related:: TODO
+categories:: UGens>TODO
+
+description::
+
+a granular delay
+
+
+classmethods::
+
+method::ar, kr
+
+argument::TODO
+
+argument::TODO
+
+
+examples::
+
+code::
+
+{ GrainDelay.ar(/* TODO */) }.play
+
+::
