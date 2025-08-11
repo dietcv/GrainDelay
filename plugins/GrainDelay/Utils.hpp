@@ -16,7 +16,7 @@ inline float lerp(float a, float b, float t) {
 inline constexpr float TWO_PI = 6.28318530717958647692f;
 
 // Granular delay constants
-inline constexpr int GRANULAR_NUM_CHANNELS = 5;
+inline constexpr int GRANULAR_NUM_CHANNELS = 16;
 inline constexpr float GRANULAR_MAX_DELAY_TIME = 5.0f;
 
 // Granular utility functions
@@ -150,14 +150,12 @@ struct SubsampleEventSystem {
     // Trigger detection
     RampToTrig trigDetect;
    
-    // Channel state
+    // Channel state (now 16 channels)
     std::array<float, GRANULAR_NUM_CHANNELS> channelPhases{};
     std::array<float, GRANULAR_NUM_CHANNELS> channelSlopes{};
     std::array<float, GRANULAR_NUM_CHANNELS> channelOffsets{};
     std::array<bool, GRANULAR_NUM_CHANNELS> isActive{};
     std::array<bool, GRANULAR_NUM_CHANNELS> justTriggered{};
-   
-    int pulseCount = 0;
    
     std::array<float, GRANULAR_NUM_CHANNELS> process(float rate, bool resetTrigger, float overlap, float sampleRate) {
         if (resetTrigger) {
@@ -182,20 +180,27 @@ struct SubsampleEventSystem {
         // 2. Detect trigger using previous sample's phase
         bool trigger = trigDetect.process(prevPhase);
        
-        // 3. Handle trigger
+        // 3. Handle trigger with busy check
         if (trigger) {
-            int ch = pulseCount % GRANULAR_NUM_CHANNELS;
-            justTriggered[ch] = true;
-           
-            if (overlap > 0.0f) {
-                // Calculate and store slopes, phases and subsample offsets for this channel
+            // Find first available channel
+            bool foundChannel = false;
+            int ch = 0;
+            for (int i = 0; i < GRANULAR_NUM_CHANNELS; ++i) {
+                if (!isActive[i]) {
+                    ch = i;
+                    foundChannel = true;
+                    break;
+                }
+            }
+            
+            if (foundChannel && overlap > 0.0f) {
+                // Found available channel - trigger grain
+                justTriggered[ch] = true;
                 channelSlopes[ch] = slope / overlap;
                 channelOffsets[ch] = prevPhase / slope;
                 channelPhases[ch] = channelSlopes[ch] * channelOffsets[ch];
                 isActive[ch] = true;
             }
-           
-            pulseCount++;
         }
        
         // 4. Process channels
@@ -235,7 +240,6 @@ struct SubsampleEventSystem {
         slope = 0.0f;
         wrapNext = false;
         trigDetect.reset();
-        pulseCount = 0;
         channelPhases.fill(0.0f);
         channelSlopes.fill(0.0f);
         channelOffsets.fill(0.0f);
