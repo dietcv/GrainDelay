@@ -26,26 +26,6 @@ float hanningWindow(float phase) {
 
 // ===== BUFFER ACCESS UTILITIES =====
 
-inline float peekNoInterp(const float* buffer, int bufSize, int index) {
-    const int wrappedIndex = sc_wrap(index, 0, bufSize - 1);
-    return buffer[wrappedIndex];
-}
-
-inline float peekLinearInterp(const float* buffer, int bufSize, float phase) {
-    
-    const float sampleIndex = phase;
-    const int intPart = static_cast<int>(sampleIndex);
-    const float fracPart = sampleIndex - intPart;
-    
-    const int idx1 = sc_wrap(intPart, 0, bufSize - 1);
-    const int idx2 = sc_wrap(intPart + 1, 0, bufSize - 1);
-    
-    const float a = buffer[idx1];
-    const float b = buffer[idx2];
-    
-    return lerp(a, b, fracPart);
-}
-
 inline float peekCubicInterp(const float* buffer, int bufSize, float phase) {
 
     const float sampleIndex = phase;
@@ -150,7 +130,7 @@ struct SubsampleEventSystem {
     // Trigger detection
     RampToTrig trigDetect;
    
-    // Channel state (now 16 channels)
+    // Channel state
     std::array<float, GRANULAR_NUM_CHANNELS> channelPhases{};
     std::array<float, GRANULAR_NUM_CHANNELS> channelSlopes{};
     std::array<float, GRANULAR_NUM_CHANNELS> channelOffsets{};

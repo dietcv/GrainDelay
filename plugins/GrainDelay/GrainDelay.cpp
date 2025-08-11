@@ -30,11 +30,11 @@ void GrainDelay::next_aa(int nSamples) {
     
     // Parameters
     const float triggerRate = in0(TriggerRate);
-    const float overlap = in0(Overlap);
-    const float delayTime = in0(DelayTime);
+    const float overlap = sc_clip(in0(Overlap), 0.001f, static_cast<float>(Utils::GRANULAR_NUM_CHANNELS));
+    const float delayTime = sc_clip(in0(DelayTime), m_sampleDur, Utils::GRANULAR_MAX_DELAY_TIME);
     const float grainRate = sc_clip(in0(GrainRate), 0.125f, 4.0f);
     const float mix = sc_clip(in0(Mix), 0.0f, 1.0f);
-    const float feedback = sc_clip(in0(Feedback), 0.0f, 0.95f);
+    const float feedback = sc_clip(in0(Feedback), 0.0f, 0.99f);
     const float damping = sc_clip(in0(Damping), 0.0f, 1.0f);
     const bool freeze = in0(Freeze) > 0.5f;
     const bool reset = in0(Reset) > 0.5f;
@@ -81,6 +81,10 @@ void GrainDelay::next_aa(int nSamples) {
                     m_bufSize, 
                     grainPhase
                 );
+
+                // Apply amplitude compensation for overlapping grains
+                float compensationGain = 1.0f / std::sqrt(overlap);
+                grainSample *= compensationGain;
                 
                 // Apply Hanning window using subsample-accurate window phase
                 grainSample *= Utils::hanningWindow(channelPhases[g]);
