@@ -56,7 +56,7 @@ void GrainDelay::next_aa(int nSamples) {
         
         // 2. Process all grains
         float delayed = 0.0f;
-        int activeGrainCount = 0;
+        //int activeGrainCount = 0;
         
         for (int g = 0; g < Utils::GRANULAR_NUM_CHANNELS; ++g) {
 
@@ -77,7 +77,7 @@ void GrainDelay::next_aa(int nSamples) {
             
             // Process grain if the event system says it's active
             if (m_eventSystem.isActive[g]) {
-                activeGrainCount++;
+                //activeGrainCount++;
 
                 // Advance phase
                 m_grainData[g].phase += m_grainData[g].rate;
@@ -97,12 +97,17 @@ void GrainDelay::next_aa(int nSamples) {
                 delayed += grainSample;
             }
         }
-
+/*
         // 3. Apply amplitude compensation based on active grains
         if (activeGrainCount > 0) {
             float compensationGain = 1.0f / std::sqrt(static_cast<float>(activeGrainCount));
             delayed *= compensationGain;
         }
+*/
+        // 3. Apply amplitude compensation based on overlap
+        float effectiveOverlap = std::max(1.0f, overlap);
+        float compensationGain = 1.0f / std::sqrt(effectiveOverlap);
+        delayed *= compensationGain;
         
         // 4. Apply feedback with damping filter
         float dampedFeedback = m_dampingFilter.processLowpass(delayed, damping);
