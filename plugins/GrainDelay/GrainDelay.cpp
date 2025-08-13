@@ -56,6 +56,7 @@ void GrainDelay::next_aa(int nSamples) {
         
         // 2. Process all grains
         float delayed = 0.0f;
+        int activeGrainCount = 0;
         
         for (int g = 0; g < Utils::GRANULAR_NUM_CHANNELS; ++g) {
 
@@ -76,6 +77,7 @@ void GrainDelay::next_aa(int nSamples) {
             
             // Process grain if the event system says it's active
             if (m_eventSystem.isActive[g]) {
+                activeGrainCount++;
 
                 // Advance phase
                 m_grainData[g].phase += m_grainData[g].rate;
@@ -89,21 +91,23 @@ void GrainDelay::next_aa(int nSamples) {
                     m_bufSize, 
                     grainPhase
                 );
-
-                // Apply amplitude compensation for overlapping grains
-                float compensationGain = 1.0f / std::sqrt(overlap);
-                grainSample *= compensationGain;
                 
                 // Apply Hanning window using subsample-accurate window phase
                 grainSample *= Utils::hanningWindow(channelPhases[g]);
                 delayed += grainSample;
             }
         }
+
+        // 3. Apply amplitude compensation based on active grains
+        if (activeGrainCount > 0) {
+            float compensationGain = 1.0f / std::sqrt(static_cast<float>(activeGrainCount));
+            delayed *= compensationGain;
+        }
         
-        // 3. Apply feedback with damping filter
+        // 4. Apply feedback with damping filter
         float dampedFeedback = m_dampingFilter.processLowpass(delayed, damping);
         
-        // 4. DC block input and write to delay buffer (only when not frozen)
+        // 5. DC block input and write to delay buffer (only when not frozen)
         float dcBlockedInput = m_dcBlocker.processHighpass(input[i], 3.0f, m_sampleRate);
         
         if (!freeze) {
@@ -112,7 +116,7 @@ void GrainDelay::next_aa(int nSamples) {
             m_writePos = sc_wrap(m_writePos, 0, m_bufSize - 1);
         }
         
-        // 5. Output with wet/dry mix
+        // 6. Output with wet/dry mix
         output[i] = Utils::lerp(input[i], delayed, mix);
     }
 }
