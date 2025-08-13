@@ -28,11 +28,13 @@ void GrainDelay::next_aa(int nSamples) {
     const float* input = in(Input);
     float* output = out(Output);
     
-    // Parameters
-    const float triggerRate = in0(TriggerRate);
-    const float overlap = sc_clip(in0(Overlap), 0.001f, static_cast<float>(Utils::GRANULAR_NUM_CHANNELS));
-    const float delayTime = sc_clip(in0(DelayTime), m_sampleDur, Utils::GRANULAR_MAX_DELAY_TIME);
-    const float grainRate = sc_clip(in0(GrainRate), 0.125f, 4.0f);
+    // Audio-rate parameters
+    const float* triggerRateIn = in(TriggerRate);
+    const float* overlapIn = in(Overlap);
+    const float* delayTimeIn = in(DelayTime);
+    const float* grainRateIn = in(GrainRate);
+    
+    // Control-rate parameters
     const float mix = sc_clip(in0(Mix), 0.0f, 1.0f);
     const float feedback = sc_clip(in0(Feedback), 0.0f, 0.99f);
     const float damping = sc_clip(in0(Damping), 0.0f, 1.0f);
@@ -41,9 +43,15 @@ void GrainDelay::next_aa(int nSamples) {
     
     for (int i = 0; i < nSamples; ++i) {
         
+        // Sample audio-rate parameters per-sample
+        float triggerRate = triggerRateIn[i];
+        float overlap = sc_clip(overlapIn[i], 0.001f, static_cast<float>(Utils::GRANULAR_NUM_CHANNELS));
+        float delayTime = sc_clip(delayTimeIn[i], m_sampleDur, Utils::GRANULAR_MAX_DELAY_TIME);
+        float grainRate = sc_clip(grainRateIn[i], 0.125f, 4.0f);
+        
         // 1. Get trigger info from subsample-accurate system
         auto channelPhases = m_eventSystem.process(
-            triggerRate, reset && (i == 0), overlap, m_sampleRate
+            triggerRate, reset, overlap, m_sampleRate
         );
         
         // 2. Process all grains

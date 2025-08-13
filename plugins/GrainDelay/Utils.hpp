@@ -16,7 +16,7 @@ inline float lerp(float a, float b, float t) {
 inline constexpr float TWO_PI = 6.28318530717958647692f;
 
 // Granular delay constants
-inline constexpr int GRANULAR_NUM_CHANNELS = 16;
+inline constexpr int GRANULAR_NUM_CHANNELS = 32;
 inline constexpr float GRANULAR_MAX_DELAY_TIME = 5.0f;
 
 // Granular utility functions
@@ -159,30 +159,22 @@ struct SubsampleEventSystem {
        
         // 2. Detect trigger using previous sample's phase
         bool trigger = trigDetect.process(prevPhase);
-       
-        // 3. Handle trigger with busy check
+
+        // 3. Handle trigger - find first available channel
         if (trigger) {
-            // Find first available channel
-            bool foundChannel = false;
-            int ch = 0;
-            for (int i = 0; i < GRANULAR_NUM_CHANNELS; ++i) {
-                if (!isActive[i]) {
-                    ch = i;
-                    foundChannel = true;
+            for (int ch = 0; ch < GRANULAR_NUM_CHANNELS; ++ch) {
+                if (!isActive[ch]) {
+                    // Found available channel - trigger grain
+                    justTriggered[ch] = true;
+                    channelSlopes[ch] = slope / overlap;
+                    channelOffsets[ch] = prevPhase / slope;
+                    channelPhases[ch] = channelSlopes[ch] * channelOffsets[ch];
+                    isActive[ch] = true;
                     break;
                 }
             }
-            
-            if (foundChannel && overlap > 0.0f) {
-                // Found available channel - trigger grain
-                justTriggered[ch] = true;
-                channelSlopes[ch] = slope / overlap;
-                channelOffsets[ch] = prevPhase / slope;
-                channelPhases[ch] = channelSlopes[ch] * channelOffsets[ch];
-                isActive[ch] = true;
-            }
         }
-       
+ 
         // 4. Process channels
         for (int ch = 0; ch < GRANULAR_NUM_CHANNELS; ++ch) {
             if (!isActive[ch]) {

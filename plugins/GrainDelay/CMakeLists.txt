@@ -1,7 +1,6 @@
 # Build the GrainDelay plugin
 add_library(GrainDelay MODULE
     GrainDelay.cpp
-    GrainDelay.hpp  
 )
 
 # platform-specific linking
