@@ -1,12 +1,14 @@
 # GrainDelay
 
-Author: dietcv
-
-a granular delay
+A real-time granular delay effect with subsample-accurate grain triggering and single-sample feedback. 
+Each grain can be pitch-shifted and overlapped to create complex textures ranging from subtle echoes to dense granular clouds. 
+The plugin uses a sub-sample accurate event system for precise grain timing, eliminating aliasing for high trigger rates and supports up to 32 active grains with smart voice allocation.
+The voice allocation system distributes each grain across the 32 available channels and checks which channel is currently free, dropping grains only when all channels are busy. 
+This ensures that no grains are scheduled on a channel which is currently active.
 
 ### Requirements
 
-- CMake >= 3.5
+- CMake >= 3.10
 - SuperCollider source code
 
 ### Building
