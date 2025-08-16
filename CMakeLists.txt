@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-
 set(lib_name "GrainDelay")
 project("${lib_name}")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -29,15 +29,21 @@ set(CMAKE_SHARED_MODULE_SUFFIX ".scx")
 
 add_subdirectory(plugins/GrainDelay)
 
-# Install .sc and .schelp files directly to the main directory
-install(FILES plugins/GrainDelay/GrainDelay.sc DESTINATION ${CMAKE_INSTALL_PREFIX})
-install(FILES plugins/GrainDelay/GrainDelay.schelp DESTINATION ${CMAKE_INSTALL_PREFIX})
+# Create SuperCollider plugin structure during install
+# Install .sc files to Classes subdirectory
+install(FILES plugins/GrainDelay/GrainDelay.sc 
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/Classes)
 
-# Install .scx file with platform-specific paths
+# Install .schelp files to HelpSource subdirectory  
+install(FILES plugins/GrainDelay/GrainDelay.schelp 
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/HelpSource)
+
+# Install .scx file to root plugin directory with platform-specific paths
 if(APPLE OR UNIX)
-  install(FILES ${CMAKE_BINARY_DIR}/plugins/GrainDelay/GrainDelay.scx DESTINATION ${CMAKE_INSTALL_PREFIX})
+  install(FILES ${CMAKE_BINARY_DIR}/plugins/GrainDelay/GrainDelay.scx 
+          DESTINATION ${CMAKE_INSTALL_PREFIX})
 endif()
-
 if(WIN32)
-  install(FILES ${CMAKE_BINARY_DIR}/plugins/GrainDelay/Release/GrainDelay.scx DESTINATION ${CMAKE_INSTALL_PREFIX})
+  install(FILES ${CMAKE_BINARY_DIR}/plugins/GrainDelay/Release/GrainDelay.scx 
+          DESTINATION ${CMAKE_INSTALL_PREFIX})
 endif()

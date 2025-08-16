@@ -2,9 +2,8 @@
 #include "SC_PlugIn.hpp"
 #include "Utils.hpp"
 #include <vector>
-#include <array>
 
-namespace GrainDelay {
+// ===== GRAIN DELAY =====
 
 class GrainDelay : public SCUnit {
 public:
@@ -22,7 +21,11 @@ private:
     const int m_bufSize;
    
     // Core trigger system
-    Utils::SubsampleEventSystem m_eventSystem;
+    Utils::EventSystem m_eventSystem;
+
+    // Constants
+    static constexpr int NUM_CHANNELS = 32;
+    static constexpr float MAX_DELAY_TIME = 5.0f;
    
     // Audio buffer and processing
     std::vector<float> m_buffer;
@@ -36,8 +39,8 @@ private:
         bool hasTriggered = false;
     };
    
-    // Grain voices for single channel
-    std::array<GrainData, Utils::GRANULAR_NUM_CHANNELS> m_grainData;
+    // grain voices
+    std::vector<GrainData> m_grainData;
    
     // Feedback processing filters
     Utils::OnePoleNormalized m_dampingFilter;  // For feedback damping (0-1)
@@ -55,15 +58,44 @@ private:
         Damping,        // Feedback filter (0=dark, 1=bright)
         Freeze,         // Freeze buffer (0=record, 1=freeze)
         Reset,          // Reset trigger
-       
         NumInputParams
     };
    
     enum Outputs {
-        Output,         // Audio output
-       
+        Output,        
         NumOutputParams
     };
 };
 
-} // namespace GrainDelay
+// ===== EVENT SYSTEM =====
+/*
+class EventSystem : public SCUnit {
+public:
+    EventSystem();
+    ~EventSystem();
+
+private:
+    void next_aa(int nSamples);
+    void reset();
+   
+    // Core processing
+    Utils::EventSystem m_eventSystem;
+
+    // Constants
+    const float m_sampleRate;
+    int m_numChannels;
+   
+    // Input parameters
+    enum InputParams {
+        NumChannels,    // Number of output channels (init-rate)
+        TriggerRate,    // Grain trigger rate (Hz)
+        Overlap,        // Grain overlap amount  
+        Reset,          // Reset trigger
+       
+        NumInputParams
+    };
+   
+    // Outputs: numChannels ramp phases
+    // Output indices calculated as: out(ch)
+};
+*/

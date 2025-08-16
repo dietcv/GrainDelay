@@ -3,19 +3,18 @@
 
 static InterfaceTable* ft;
 
-namespace GrainDelay {
+// ===== GRAIN DELAY =====
 
 GrainDelay::GrainDelay() : 
     m_sampleRate(static_cast<float>(sampleRate())),
     m_sampleDur(1.0f / m_sampleRate),
-    m_bufFrames(Utils::GRANULAR_MAX_DELAY_TIME * m_sampleRate),
-    m_bufSize(static_cast<int>(m_bufFrames))
+    m_bufFrames(MAX_DELAY_TIME * m_sampleRate),
+    m_bufSize(static_cast<int>(m_bufFrames)),
+    m_eventSystem(NUM_CHANNELS)
 {
-    // Initialize audio buffer
+    // Initialize audio buffer & graindata
     m_buffer.resize(m_bufSize, 0.0f);
-    
-    // Reset everything
-    reset();
+    m_grainData.resize(NUM_CHANNELS);
     
     mCalcFunc = make_calc_function<GrainDelay, &GrainDelay::next_aa>();
     next_aa(1);
@@ -45,8 +44,8 @@ void GrainDelay::next_aa(int nSamples) {
         
         // Sample audio-rate parameters per-sample
         float triggerRate = triggerRateIn[i];
-        float overlap = sc_clip(overlapIn[i], 0.001f, static_cast<float>(Utils::GRANULAR_NUM_CHANNELS));
-        float delayTime = sc_clip(delayTimeIn[i], m_sampleDur, Utils::GRANULAR_MAX_DELAY_TIME);
+        float overlap = sc_clip(overlapIn[i], 0.001f, static_cast<float>(NUM_CHANNELS));
+        float delayTime = sc_clip(delayTimeIn[i], m_sampleDur, MAX_DELAY_TIME);
         float grainRate = sc_clip(grainRateIn[i], 0.125f, 4.0f);
         
         // 1. Get trigger info from subsample-accurate system
@@ -56,9 +55,9 @@ void GrainDelay::next_aa(int nSamples) {
         
         // 2. Process all grains
         float delayed = 0.0f;
-        //int activeGrainCount = 0;
-        
-        for (int g = 0; g < Utils::GRANULAR_NUM_CHANNELS; ++g) {
+   
+        // FIX: Use NUM_CHANNELS instead of MAX_DELAY_TIME
+        for (int g = 0; g < NUM_CHANNELS; ++g) {
 
             // Trigger new grain if needed
             if (m_eventSystem.justTriggered[g]) {
@@ -72,12 +71,11 @@ void GrainDelay::next_aa(int nSamples) {
                 m_grainData[g].readPos = readPos;
                 m_grainData[g].rate = grainRate;
                 m_grainData[g].hasTriggered = true;
-                m_grainData[g].phase = grainRate * m_eventSystem.channelOffsets[g];
+                m_grainData[g].phase = grainRate * static_cast<float>(m_eventSystem.channelOffsets[g]);
             }
             
             // Process grain if the event system says it's active
             if (m_eventSystem.isActive[g]) {
-                //activeGrainCount++;
 
                 // Advance phase
                 m_grainData[g].phase += m_grainData[g].rate;
@@ -97,13 +95,7 @@ void GrainDelay::next_aa(int nSamples) {
                 delayed += grainSample;
             }
         }
-/*
-        // 3. Apply amplitude compensation based on active grains
-        if (activeGrainCount > 0) {
-            float compensationGain = 1.0f / std::sqrt(static_cast<float>(activeGrainCount));
-            delayed *= compensationGain;
-        }
-*/
+
         // 3. Apply amplitude compensation based on overlap
         float effectiveOverlap = std::max(1.0f, overlap);
         float compensationGain = 1.0f / std::sqrt(effectiveOverlap);
@@ -132,15 +124,62 @@ void GrainDelay::reset() {
     m_dampingFilter.reset();
     m_dcBlocker.reset();
     
-    // Reset all grain data
-    for (int i = 0; i < Utils::GRANULAR_NUM_CHANNELS; ++i) {
+    // Reset grain data
+    for (int i = 0; i < NUM_CHANNELS; ++i) {
         m_grainData[i] = GrainData{};  // Reset to default values
     }
 }
 
-} // namespace GrainDelay
+// ===== EVENT SYSTEM =====
+/*
+EventSystem::EventSystem() : m_sampleRate(static_cast<float>(sampleRate()))
+{
+    // Get number of channels from input parameter
+    m_numChannels = sc_clip(static_cast<int>(in0(NumChannels)), 1, 32);
+    
+    // Initialize the event system with the correct number of channels
+    m_eventSystem = Utils::EventSystem(m_numChannels);
+    m_eventSystem.reset();
+   
+    mCalcFunc = make_calc_function<EventSystem, &EventSystem::next_aa>();
+    next_aa(1);
+}
 
+EventSystem::~EventSystem() = default;
+
+void EventSystem::next_aa(int nSamples) {
+
+    // Audio-rate parameters
+    const float* triggerRateIn = in(TriggerRate);
+    const float* overlapIn = in(Overlap);
+    const bool reset = in0(Reset) > 0.5f;
+   
+    for (int i = 0; i < nSamples; ++i) {
+
+        // Sample audio-rate parameters per-sample
+        float triggerRate = triggerRateIn[i];
+        float overlap = sc_clip(overlapIn[i], 0.001f, static_cast<float>(m_numChannels));
+       
+        auto channelPhases = m_eventSystem.process(
+            triggerRate,
+            reset,
+            overlap,
+            m_sampleRate
+        );
+       
+        // Output the ramp phases for each channel
+        for (int ch = 0; ch < m_numChannels; ++ch) {
+            out(ch)[i] = channelPhases[ch];
+        }
+    }
+}
+
+void EventSystem::reset() {
+    m_eventSystem.reset();
+}
+*/
 PluginLoad(GrainDelayUGens) {
     ft = inTable;
-    registerUnit<GrainDelay::GrainDelay>(ft, "GrainDelay", false);
+    registerUnit<GrainDelay>(ft, "GrainDelay", false);
+    //registerUnit<EventSystem>(ft, "EventSystem", false);
 }

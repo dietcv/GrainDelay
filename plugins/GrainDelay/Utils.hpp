@@ -1,6 +1,7 @@
 #pragma once
 #include "SC_PlugIn.hpp"
-#include <array>        
+#include <array>
+#include <vector>        
 #include <cmath>       
 #include <algorithm> 
 
@@ -14,10 +15,6 @@ inline float lerp(float a, float b, float t) {
 
 // Math constants
 inline constexpr float TWO_PI = 6.28318530717958647692f;
-
-// Granular delay constants
-inline constexpr int GRANULAR_NUM_CHANNELS = 32;
-inline constexpr float GRANULAR_MAX_DELAY_TIME = 5.0f;
 
 // Granular utility functions
 float hanningWindow(float phase) {
@@ -49,25 +46,21 @@ inline float peekCubicInterp(const float* buffer, int bufSize, float phase) {
 
 struct OnePoleNormalized {
     float m_state = 0.0f;
-   
-    void reset() {
-        m_state = 0.0f;
-    }
-   
+    
     float processLowpass(float input, float coeff) {
         coeff = sc_clip(coeff, 0.0f, 1.0f);
         m_state = input * (1.0f - coeff) + m_state * coeff;
         return m_state;
+    }
+
+    void reset() {
+        m_state = 0.0f;
     }
 };
 
 struct OnePoleFilter {
     
     float m_state{0.0f};
-   
-    void reset() {
-        m_state = 0.0f;
-    }
    
     float processLowpass(float input, float cutoffHz, float sampleRate) {
 
@@ -88,95 +81,109 @@ struct OnePoleFilter {
         float lowpassed = processLowpass(input, cutoffHz, sampleRate);
         return input - lowpassed;
     }
+
+    void reset() {
+        m_state = 0.0f;
+    }
 };
 
-// ===== PHASE PROCESSING UTILITIES =====
+// ===== TRIGGER AND TIMING UTILITIES =====
 
 struct RampToTrig {
-    float lastPhase = 0.0f;
-    bool lastWrap = false;
+    double m_lastPhase{0.0};
+    bool m_lastWrap{false};
     
-    bool process(float currentPhase) {
+    bool process(double currentPhase) {
         // Detect wrap using current vs last phase
-        float delta = currentPhase - lastPhase;
-        float sum = currentPhase + lastPhase;
+        double delta = currentPhase - m_lastPhase;
+        double sum = currentPhase + m_lastPhase;
         bool currentWrap = (sum != 0.0f) && (std::abs(delta / sum) > 0.5f);
         
         // Edge detection - only trigger on rising edge of wrap
-        bool trigger = currentWrap && !lastWrap;
+        bool trigger = currentWrap && !m_lastWrap;
         
         // Update state for next sample
-        lastPhase = currentPhase;
-        lastWrap = currentWrap;
+        m_lastPhase = currentPhase;
+        m_lastWrap = currentWrap;
         
         return trigger;
     }
     
     void reset() {
-        lastPhase = 0.0f;
-        lastWrap = false;
+        m_lastPhase = 0.0;
+        m_lastWrap = false;
     }
 };
 
-// ===== EVENT UTILITIES =====
-
-struct SubsampleEventSystem {
-    // Ramp state
-    float phase = 0.0f;        // Current ramp position [0,1)
-    float prevPhase = 0.0f;    // Previous sample's ramp position (for trigger detection)
-    float slope = 0.0f;        // Current slope (rate/sampleRate)
-    bool wrapNext = false;     // Flag: will wrap on next sample
-   
-    // Trigger detection
+struct EventSystem {
+    // Core timing components
     RampToTrig trigDetect;
    
-    // Channel state
-    std::array<float, GRANULAR_NUM_CHANNELS> channelPhases{};
-    std::array<float, GRANULAR_NUM_CHANNELS> channelSlopes{};
-    std::array<float, GRANULAR_NUM_CHANNELS> channelOffsets{};
-    std::array<bool, GRANULAR_NUM_CHANNELS> isActive{};
-    std::array<bool, GRANULAR_NUM_CHANNELS> justTriggered{};
+    // Ramp state
+    double phase{0.0};        // Current ramp position [0,1)
+    double slope{0.0};        // Current slope (rate/sampleRate)
+    bool wrapNext{false};     // Flag: will wrap on next sample
    
-    std::array<float, GRANULAR_NUM_CHANNELS> process(float rate, bool resetTrigger, float overlap, float sampleRate) {
+    // Dynamic channel state
+    std::vector<double> channelPhases;     
+    std::vector<double> channelSlopes;
+    std::vector<double> channelOffsets;
+    std::vector<bool> isActive;
+    std::vector<bool> justTriggered;
+    int numChannels;
+
+    explicit EventSystem(int channels = 5) : numChannels(channels) {
+        channelPhases.resize(numChannels, 0.0);
+        channelSlopes.resize(numChannels, 0.0);
+        channelOffsets.resize(numChannels, 0.0);
+        isActive.resize(numChannels, false);
+        justTriggered.resize(numChannels, false);
+    }
+   
+    std::vector<float> process(float rate, bool resetTrigger, float overlap, float sampleRate) {
+        std::vector<float> output(numChannels, 0.0f);
+        
+        // Handle reset
         if (resetTrigger) {
             reset();
+            return output; // Early exit on reset
         }
-       
-        std::array<float, GRANULAR_NUM_CHANNELS> output{};
-        justTriggered.fill(false);
+
+        // Clear triggers for this cycle
+        std::fill(justTriggered.begin(), justTriggered.end(), false);
        
         // Initialize on first sample
-        if (slope == 0.0f) {
+        if (slope == 0.0) {
             slope = rate / sampleRate;
         }
        
         // 1. Handle wrap from previous sample
         if (wrapNext) {
-            phase -= 1.0f;                      // Wrap the phase
+            phase -= 1.0;                       // Wrap the phase
             slope = rate / sampleRate;          // Latch new slope for next period
             wrapNext = false;
         }
        
-        // 2. Detect trigger using previous sample's phase
-        bool trigger = trigDetect.process(prevPhase);
-
+        // 2. Detect trigger
+        bool trigger = trigDetect.process(phase);
+       
         // 3. Handle trigger - find first available channel
-        if (trigger) {
-            for (int ch = 0; ch < GRANULAR_NUM_CHANNELS; ++ch) {
+        if (trigger && slope != 0.0) {
+            for (int ch = 0; ch < numChannels; ++ch) {
                 if (!isActive[ch]) {
                     // Found available channel - trigger grain
                     justTriggered[ch] = true;
                     channelSlopes[ch] = slope / overlap;
-                    channelOffsets[ch] = prevPhase / slope;
+                    channelOffsets[ch] = phase / slope;
                     channelPhases[ch] = channelSlopes[ch] * channelOffsets[ch];
                     isActive[ch] = true;
                     break;
                 }
             }
         }
- 
+       
         // 4. Process channels
-        for (int ch = 0; ch < GRANULAR_NUM_CHANNELS; ++ch) {
+        for (int ch = 0; ch < numChannels; ++ch) {
             if (!isActive[ch]) {
                 output[ch] = 0.0f;
                 continue;
@@ -187,20 +194,19 @@ struct SubsampleEventSystem {
                 channelPhases[ch] += channelSlopes[ch];
             }
            
-            if (channelPhases[ch] >= 1.0f) {
+            if (channelPhases[ch] >= 1.0) {
                 isActive[ch] = false;
                 output[ch] = 0.0f;
             } else {
-                output[ch] = channelPhases[ch];
+                output[ch] = static_cast<float>(channelPhases[ch]);
             }
         }
        
         // 5. Update for next sample
-        prevPhase = phase;          // Store current as previous
         phase += slope;             // Increment current
        
         // 6. Check for wrap
-        if (phase >= 1.0f) {
+        if (phase >= 1.0) {
             wrapNext = true;
         }
        
@@ -208,15 +214,15 @@ struct SubsampleEventSystem {
     }
    
     void reset() {
-        phase = prevPhase = 0.0f;
-        slope = 0.0f;
+        phase = 0.0;
+        slope = 0.0;
         wrapNext = false;
         trigDetect.reset();
-        channelPhases.fill(0.0f);
-        channelSlopes.fill(0.0f);
-        channelOffsets.fill(0.0f);
-        isActive.fill(false);
-        justTriggered.fill(false);
+        std::fill(channelPhases.begin(), channelPhases.end(), 0.0);
+        std::fill(channelSlopes.begin(), channelSlopes.end(), 0.0);
+        std::fill(channelOffsets.begin(), channelOffsets.end(), 0.0);
+        std::fill(isActive.begin(), isActive.end(), false);
+        std::fill(justTriggered.begin(), justTriggered.end(), false);
     }
 };
 

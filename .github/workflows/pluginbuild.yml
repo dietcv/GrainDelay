@@ -60,46 +60,63 @@ jobs:
       shell: bash
       working-directory: ${{ github.workspace }}/build
       run: |
-        mkdir -p GrainDelay-package
-        # Copy only the essential plugin files directly from GrainDelay folder
-        find GrainDelay/ -name "*.scx" -exec cp {} GrainDelay-package/ \; 2>/dev/null
-        find GrainDelay/ -name "*.sc" -exec cp {} GrainDelay-package/ \; 2>/dev/null
-        find GrainDelay/ -name "*.schelp" -exec cp {} GrainDelay-package/ \; 2>/dev/null
-        # Show what we're packaging
-        echo "Files being packaged:"
-        ls -la GrainDelay-package/
-        # Create clean zip with only plugin files
-        cd GrainDelay-package && zip -r ../GrainDelay-macOS-ARM.zip . && cd ..
+        # Create SuperCollider plugin structure
+        mkdir -p GrainDelay-package/GrainDelay/Classes
+        mkdir -p GrainDelay-package/GrainDelay/HelpSource
+        
+        # Copy files to locations
+        find GrainDelay/ -name "*.scx" -exec cp {} GrainDelay-package/GrainDelay/ \; 2>/dev/null
+        find GrainDelay/ -name "*.sc" -exec cp {} GrainDelay-package/GrainDelay/Classes/ \; 2>/dev/null
+        find GrainDelay/ -name "*.schelp" -exec cp {} GrainDelay-package/GrainDelay/HelpSource/ \; 2>/dev/null
+        
+        # Show the structure
+        echo "Plugin structure:"
+        find GrainDelay-package/ -type f
+        
+        # Create zip from the plugin folder
+        cd GrainDelay-package && zip -r ../GrainDelay-macOS-ARM.zip GrainDelay && cd ..
 
     - name: Package plugin (macOS-13)
       if: matrix.os == 'macos-13'
       shell: bash
       working-directory: ${{ github.workspace }}/build
       run: |
-        mkdir -p GrainDelay-package
-        # Copy only the essential plugin files directly from GrainDelay folder
-        find GrainDelay/ -name "*.scx" -exec cp {} GrainDelay-package/ \; 2>/dev/null
-        find GrainDelay/ -name "*.sc" -exec cp {} GrainDelay-package/ \; 2>/dev/null
-        find GrainDelay/ -name "*.schelp" -exec cp {} GrainDelay-package/ \; 2>/dev/null
-        # Show what we're packaging
-        echo "Files being packaged:"
-        ls -la GrainDelay-package/
-        # Create clean zip with only plugin files
-        cd GrainDelay-package && zip -r ../GrainDelay-macOS-Intel.zip . && cd ..
+        # Create SuperCollider plugin structure
+        mkdir -p GrainDelay-package/GrainDelay/Classes
+        mkdir -p GrainDelay-package/GrainDelay/HelpSource
+        
+        # Copy files to locations
+        find GrainDelay/ -name "*.scx" -exec cp {} GrainDelay-package/GrainDelay/ \; 2>/dev/null
+        find GrainDelay/ -name "*.sc" -exec cp {} GrainDelay-package/GrainDelay/Classes/ \; 2>/dev/null
+        find GrainDelay/ -name "*.schelp" -exec cp {} GrainDelay-package/GrainDelay/HelpSource/ \; 2>/dev/null
+        
+        # Show the structure
+        echo "Plugin structure:"
+        find GrainDelay-package/ -type f
+        
+        # Create zip from the plugin folder
+        cd GrainDelay-package && zip -r ../GrainDelay-macOS-Intel.zip GrainDelay && cd ..
 
     - name: Package plugin (Windows)
       if: matrix.os == 'windows-latest'
       shell: pwsh
       working-directory: ${{ github.workspace }}\build
       run: |
-        New-Item -ItemType Directory -Force -Path "GrainDelay-package"
-        # Copy only the essential plugin files directly from GrainDelay folder
-        Get-ChildItem "GrainDelay" -Recurse -Include "*.scx","*.sc","*.schelp" | Copy-Item -Destination "GrainDelay-package" -Force
-        # Show what we're packaging
-        Write-Host "Files being packaged:"
-        Get-ChildItem "GrainDelay-package"
-        # Create clean zip with only plugin files
-        Compress-Archive -Path "GrainDelay-package\*" -DestinationPath "GrainDelay-Windows.zip" -Force
+        # Create SuperCollider plugin structure
+        New-Item -ItemType Directory -Force -Path "GrainDelay-package\GrainDelay\Classes"
+        New-Item -ItemType Directory -Force -Path "GrainDelay-package\GrainDelay\HelpSource"
+        
+        # Copy files to locations
+        Get-ChildItem "GrainDelay" -Recurse -Include "*.scx" | Copy-Item -Destination "GrainDelay-package\GrainDelay" -Force
+        Get-ChildItem "GrainDelay" -Recurse -Include "*.sc" | Copy-Item -Destination "GrainDelay-package\GrainDelay\Classes" -Force
+        Get-ChildItem "GrainDelay" -Recurse -Include "*.schelp" | Copy-Item -Destination "GrainDelay-package\GrainDelay\HelpSource" -Force
+        
+        # Show the structure
+        Write-Host "Plugin structure:"
+        Get-ChildItem "GrainDelay-package" -Recurse
+        
+        # Create zip from the plugin folder
+        Compress-Archive -Path "GrainDelay-package\GrainDelay" -DestinationPath "GrainDelay-Windows.zip" -Force
 
     # Store as artifacts - works for both manual runs and tag pushes
     - name: Upload build artifacts
